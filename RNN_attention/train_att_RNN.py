@@ -113,11 +113,9 @@ def train(config=None):
                 optimizer.zero_grad()
                 outputs, _ = model(src, tgt_input)
 
-                # --- FIX: Truncate target to match output sequence length ---
                 outputs_len = outputs.size(1)
                 tgt_output = tgt_output[:, :outputs_len]
                 assert outputs.shape[1] == tgt_output.shape[1], f"Decoder outputs {outputs.shape[1]}, targets {tgt_output.shape[1]}"
-                # ----------------------------------------------------------
 
                 loss = criterion(outputs.view(-1, len(tgt_vocab)), tgt_output.reshape(-1))
                 loss.backward()
@@ -138,11 +136,11 @@ def train(config=None):
 
                     outputs, _ = model(src, tgt_input)
 
-                    # --- FIX: Truncate target to match output sequence length ---
+    
                     outputs_len = outputs.size(1)
                     tgt_output = tgt_output[:, :outputs_len]
                     assert outputs.shape[1] == tgt_output.shape[1], f"Decoder outputs {outputs.shape[1]}, targets {tgt_output.shape[1]}"
-                    # ----------------------------------------------------------
+        
 
                     loss = criterion(outputs.view(-1, len(tgt_vocab)), tgt_output.reshape(-1))
                     val_loss += loss.item()
