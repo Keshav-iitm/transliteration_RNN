@@ -34,8 +34,7 @@ def get_collate_fn(src_vocab, tgt_vocab):
         max_src_len = max(len(seq) for seq in src_seqs)
         max_tgt_len = max(len(seq) for seq in tgt_seqs)
 
-        # Remove this line as it's redundant:
-        # src_padded, tgt_padded = [], []
+       
 
         # The actual padding happens here
         src_padded = [
