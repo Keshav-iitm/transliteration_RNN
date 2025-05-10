@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import imageio
 from torch.utils.data import DataLoader, Subset
+import argparse
 
 matplotlib.use('Agg')
 plt.rcParams.update({
@@ -16,6 +17,11 @@ plt.rcParams.update({
     'axes.titlepad': 20,
     'axes.labelpad': 15
 })
+# Args parse
+parser = argparse.ArgumentParser()
+parser.add_argument('--model_path', type=str, default='best_att_model_qurwg2mv.pt',
+                    help='Path to the best attention model file')
+args = parser.parse_args()
 
 def create_visualization(src_chars, tgt_chars, attn_weights, filename):
     """Create attention visualization for a single sample"""
@@ -67,7 +73,7 @@ def main():
     dataset = DakshinaDataset('./dakshina_dataset_v1.0', 'ta')
     
     # Load model
-    model_path = 'best_att_model_qurwg2mv.pt'
+    model_path = args.model_path
     if not os.path.exists(model_path):
         print(f"❌ Model file not found: {model_path}")
         return
