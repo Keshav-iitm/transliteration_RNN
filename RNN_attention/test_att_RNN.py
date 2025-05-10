@@ -15,23 +15,23 @@ from sklearn.metrics import confusion_matrix
 from dataset_att_RNN import DakshinaDataset, get_collate_fn
 from model_att_RNN import Seq2Seq
 
-# --------- Suppress Font Warnings ---------
+#Warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
 try:
-    matplotlib.rcParams['font.family'] = 'DejaVu Sans'  # Font with better Unicode support
+    matplotlib.rcParams['font.family'] = 'DejaVu Sans'  
 except:
     print("⚠️ Font not found - using default")
 
-# --------- Argument Parsing ---------
+# Args parse
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_path', type=str, default='best_att_model_qurwg2mv.pt',
                     help='Path to the best attention model file')
 args = parser.parse_args()
 
-# --------- W&B Init ---------
+# WB init
 wandb.init(project="RNN-Transliteration-Attention", name="final_test_eval_attention")
 
-# --------- Config (Match your best sweep parameters) ---------
+# Params
 config = {
     'data_dir': './dakshina_dataset_v1.0',
     'lang': 'ta',
@@ -48,7 +48,7 @@ config = {
 }
 device = torch.device(config['device'])
 
-# --------- Load Data and Vocabs ---------
+# Load data and vocabs
 dataset = DakshinaDataset(config['data_dir'], config['lang'])
 src_vocab = dataset.src_vocab
 tgt_vocab = dataset.tgt_vocab
@@ -59,7 +59,7 @@ test_data = dataset.test_data
 collate_fn = get_collate_fn(dataset)
 test_loader = DataLoader(test_data, batch_size=config['batch_size'], shuffle=False, collate_fn=collate_fn)
 
-# --------- Load Attention Model ---------
+# Attention model
 model = Seq2Seq(
     src_vocab_size=len(src_vocab),
     tgt_vocab_size=len(tgt_vocab),
@@ -74,7 +74,7 @@ model = Seq2Seq(
 model.load_state_dict(torch.load(args.model_path, map_location=device))
 model.eval()
 
-# --------- Inference & Logging ---------
+# Inference and logging
 y_true_all, y_pred_all, pred_table = [], [], []
 token_correct, token_total = 0, 0
 attention_data = []
@@ -130,7 +130,7 @@ with torch.no_grad():
                 f"{token_acc_sample:.2%}"
             ])
 
-# --------- Save Prediction CSVs ---------
+# Saving predictions
 # Full predictions with all details
 csv_path = os.path.join(predictions_folder, "test_predictions_full.csv")
 with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
@@ -149,7 +149,7 @@ with open(submission_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
 
 print(f"Prediction files saved to {predictions_folder}/")
 
-# --------- Attention Heatmaps Visualization ---------
+# Attention mechanisms
 def plot_attention_grid(attention_data):
     """Plot attention heatmaps in a grid layout (4x3 for up to 10 samples)"""
     fig, axs = plt.subplots(4, 3, figsize=(20, 16))
@@ -179,7 +179,7 @@ def plot_attention_grid(attention_data):
     plt.tight_layout()
     return fig
 
-# --------- Calculate Metrics ---------
+# Metrices calculation
 exact_matches = sum([1 for t, p in zip(y_true_all, y_pred_all) if t == p])
 exact_acc = 100 * exact_matches / len(y_true_all)
 token_acc = 100 * token_correct / token_total if token_total > 0 else 0
@@ -187,7 +187,7 @@ token_acc = 100 * token_correct / token_total if token_total > 0 else 0
 print(f"Exact Match Test Accuracy: {exact_acc:.2f}%")
 print(f"Token-level Test Accuracy: {token_acc:.2f}%")
 
-# --------- Character-Level Confusion Matrix ---------
+# Confusion matrix
 def plot_char_confusion_matrix():
     all_chars = sorted(set("".join(y_true_all + y_pred_all)))
     char_to_idx = {ch: i for i, ch in enumerate(all_chars)}
@@ -211,7 +211,7 @@ def plot_char_confusion_matrix():
     plt.tight_layout()
     return fig
 
-# --------- Sequence-Level Confusion Matrix ---------
+# Sequence level conusion matrix
 def plot_seq_confusion_matrix():
     # Get top 20 most common sequences
     pair_counts = Counter(zip(y_true_all, y_pred_all))
@@ -234,7 +234,7 @@ def plot_seq_confusion_matrix():
     plt.tight_layout()
     return fig
 
-# --------- Log Everything to W&B ---------
+#Wandb
 # Log metrics
 wandb.log({
     "Exact Match Accuracy": exact_acc,

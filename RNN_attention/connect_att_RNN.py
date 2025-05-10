@@ -1,4 +1,3 @@
-# visualize_connectivity_final.py
 import torch
 import os
 import numpy as np
