@@ -15,41 +15,38 @@ from sklearn.metrics import confusion_matrix
 from dataset_att_RNN import DakshinaDataset, get_collate_fn
 from model_att_RNN import Seq2Seq
 
-#Warnings
+# Warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
 try:
-    matplotlib.rcParams['font.family'] = 'DejaVu Sans'  
+    matplotlib.rcParams['font.family'] = 'DejaVu Sans'
 except:
     print("⚠️ Font not found - using default")
 
-# Args parse
-parser = argparse.ArgumentParser()
-parser.add_argument('--model_path', type=str, default='best_att_model_qurwg2mv.pt',
-                    help='Path to the best attention model file')
+# Arg parse
+parser = argparse.ArgumentParser(description="Evaluate attention-based Seq2Seq model on test set")
+parser.add_argument('--model_path', type=str, default='best_att_model_qurwg2mv.pt', help='Path to the best attention model file')
+parser.add_argument('--data_dir', type=str, default='./dakshina_dataset_v1.0', help='Path to the dataset directory')
+parser.add_argument('--lang', type=str, default='ta', help='Language code')
+parser.add_argument('--embed_size', type=int, default=256, help='Size of the embedding vectors')
+parser.add_argument('--hidden_size', type=int, default=256, help='Size of the hidden layers')
+parser.add_argument('--num_encoder_layers', type=int, default=2, help='Number of encoder layers')
+parser.add_argument('--num_decoder_layers', type=int, default=2, help='Number of decoder layers')
+parser.add_argument('--cell_type', type=str, choices=['lstm', 'gru'], default='gru', help='Type of RNN cell to use')
+parser.add_argument('--init_method', type=str, choices=['xavier', 'kaiming', 'normal'], default='xavier', help='Weight initialization method')
+parser.add_argument('--dropout', type=float, default=0.4, help='Dropout probability')
+parser.add_argument('--beam_width', type=int, default=3, help='Beam width for decoding')
+parser.add_argument('--batch_size', type=int, default=16, help='Batch size for evaluation')
+
 args = parser.parse_args()
 
-# WB init
+# Set device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Wandb init
 wandb.init(project="RNN-Transliteration-Attention", name="final_test_eval_attention")
 
-# Params
-config = {
-    'data_dir': './dakshina_dataset_v1.0',
-    'lang': 'ta',
-    'embed_size': 256,
-    'hidden_size': 256,
-    'num_encoder_layers': 2,
-    'num_decoder_layers': 2,
-    'cell_type': 'gru',
-    'init_method': 'xavier',
-    'dropout': 0.4,
-    'beam_width': 3,
-    'batch_size': 16,
-    'device': 'cuda' if torch.cuda.is_available() else 'cpu'
-}
-device = torch.device(config['device'])
-
-# Load data and vocabs
-dataset = DakshinaDataset(config['data_dir'], config['lang'])
+# Load dataset and vocabs
+dataset = DakshinaDataset(args.data_dir, args.lang)
 src_vocab = dataset.src_vocab
 tgt_vocab = dataset.tgt_vocab
 inv_src_vocab = {v: k for k, v in src_vocab.items()}
@@ -57,20 +54,21 @@ inv_tgt_vocab = {v: k for k, v in tgt_vocab.items()}
 
 test_data = dataset.test_data
 collate_fn = get_collate_fn(dataset)
-test_loader = DataLoader(test_data, batch_size=config['batch_size'], shuffle=False, collate_fn=collate_fn)
+test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
 
-# Attention model
+# Load attention model
 model = Seq2Seq(
     src_vocab_size=len(src_vocab),
     tgt_vocab_size=len(tgt_vocab),
-    embed_size=config['embed_size'],
-    hidden_size=config['hidden_size'],
-    num_encoder_layers=config['num_encoder_layers'],
-    num_decoder_layers=config['num_decoder_layers'],
-    dropout=config['dropout'],
-    cell_type=config['cell_type'],
-    init_method=config['init_method']
+    embed_size=args.embed_size,
+    hidden_size=args.hidden_size,
+    num_encoder_layers=args.num_encoder_layers,
+    num_decoder_layers=args.num_decoder_layers,
+    dropout=args.dropout,
+    cell_type=args.cell_type,
+    init_method=args.init_method
 ).to(device)
+
 model.load_state_dict(torch.load(args.model_path, map_location=device))
 model.eval()
 

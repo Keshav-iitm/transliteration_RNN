@@ -1,138 +1,269 @@
 import torch
+import argparse
+import wandb
 import os
+import csv
 import numpy as np
+import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
-import imageio
-from torch.utils.data import DataLoader, Subset
-import argparse
+import warnings
+from collections import Counter
 
-matplotlib.use('Agg')
-plt.rcParams.update({
-    'font.family': 'DejaVu Sans',
-    'axes.titlesize': 14,
-    'axes.labelsize': 12,
-    'xtick.labelsize': 10,
-    'ytick.labelsize': 10,
-    'axes.titlepad': 20,
-    'axes.labelpad': 15
-})
-# Args parse
-parser = argparse.ArgumentParser()
-parser.add_argument('--model_path', type=str, default='best_att_model_qurwg2mv.pt',
-                    help='Path to the best attention model file')
+from torch.utils.data import DataLoader
+from sklearn.metrics import confusion_matrix
+from dataset_att_RNN import DakshinaDataset, get_collate_fn
+from model_att_RNN import Seq2Seq
+
+# Warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+try:
+    matplotlib.rcParams['font.family'] = 'DejaVu Sans'
+except:
+    print("⚠️ Font not found - using default")
+
+# Arg parse
+parser = argparse.ArgumentParser(description="Evaluate attention-based Seq2Seq model on test set")
+parser.add_argument('--model_path', type=str, default='best_att_model_qurwg2mv.pt', help='Path to the best attention model file')
+parser.add_argument('--data_dir', type=str, default='./dakshina_dataset_v1.0', help='Path to the dataset directory')
+parser.add_argument('--lang', type=str, default='ta', help='Language code')
+parser.add_argument('--embed_size', type=int, default=256, help='Size of the embedding vectors')
+parser.add_argument('--hidden_size', type=int, default=256, help='Size of the hidden layers')
+parser.add_argument('--num_encoder_layers', type=int, default=2, help='Number of encoder layers')
+parser.add_argument('--num_decoder_layers', type=int, default=2, help='Number of decoder layers')
+parser.add_argument('--cell_type', type=str, choices=['lstm', 'gru'], default='gru', help='Type of RNN cell to use')
+parser.add_argument('--init_method', type=str, choices=['xavier', 'kaiming', 'normal'], default='xavier', help='Weight initialization method')
+parser.add_argument('--dropout', type=float, default=0.4, help='Dropout probability')
+parser.add_argument('--beam_width', type=int, default=3, help='Beam width for decoding')
+parser.add_argument('--batch_size', type=int, default=16, help='Batch size for evaluation')
+
 args = parser.parse_args()
 
-def create_visualization(src_chars, tgt_chars, attn_weights, filename):
-    """Create attention visualization for a single sample"""
-    frames = []
-    max_width = max(len(src_chars), 8)
-    
-    for step in range(len(tgt_chars)):
-        fig = plt.figure(figsize=(max_width/2, 3), dpi=150)
-        ax = fig.add_subplot(111)
-        
-        # Plot attention matrix
-        ax.matshow(attn_weights[step].reshape(1, -1), 
-                  cmap='Greens',
-                  aspect='auto',
-                  vmin=0,
-                  vmax=1)
-        
-        # Axis labels
-        ax.set_xlabel('Input Characters', labelpad=20)
-        ax.set_ylabel('Attention Weights', labelpad=15)
-        ax.xaxis.set_label_position('top')
-        
-        # Ticks and values
-        ax.set_xticks(np.arange(len(src_chars)))
-        ax.set_xticklabels(src_chars, rotation=45)
-        ax.set_yticks([])
-        ax.set_title(f"Generating '{tgt_chars[step]}' (Step {step+1})", pad=25)
-        
-        # Add attention values
-        for idx, weight in enumerate(attn_weights[step]):
-            ax.text(idx, 0, f"{weight:.2f}", 
-                   ha='center', va='center',
-                   color='white' if weight > 0.5 else 'darkgreen',
-                   fontsize=9)
-        
-        fig.tight_layout(pad=3.0)
-        fig.canvas.draw()
-        frames.append(np.array(fig.canvas.renderer.buffer_rgba()))
-        plt.close(fig)
-    
-    imageio.mimsave(filename, frames, duration=1000, subrectangles=True)
+# Set device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def main():
-    from dataset_att_RNN import DakshinaDataset, get_collate_fn
-    from model_att_RNN import Seq2Seq
+# Wandb init
+wandb.init(project="RNN-Transliteration-Attention", name="final_test_eval_attention")
 
-    # Configuration
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = DakshinaDataset('./dakshina_dataset_v1.0', 'ta')
+# Load dataset and vocabs
+dataset = DakshinaDataset(args.data_dir, args.lang)
+src_vocab = dataset.src_vocab
+tgt_vocab = dataset.tgt_vocab
+inv_src_vocab = {v: k for k, v in src_vocab.items()}
+inv_tgt_vocab = {v: k for k, v in tgt_vocab.items()}
+
+test_data = dataset.test_data
+collate_fn = get_collate_fn(dataset)
+test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+
+# Load attention model
+model = Seq2Seq(
+    src_vocab_size=len(src_vocab),
+    tgt_vocab_size=len(tgt_vocab),
+    embed_size=args.embed_size,
+    hidden_size=args.hidden_size,
+    num_encoder_layers=args.num_encoder_layers,
+    num_decoder_layers=args.num_decoder_layers,
+    dropout=args.dropout,
+    cell_type=args.cell_type,
+    init_method=args.init_method
+).to(device)
+
+model.load_state_dict(torch.load(args.model_path, map_location=device))
+model.eval()
+
+# Inference and logging
+y_true_all, y_pred_all, pred_table = [], [], []
+token_correct, token_total = 0, 0
+attention_data = []
+predictions_folder = "predictions_attention"
+os.makedirs(predictions_folder, exist_ok=True)
+
+with torch.no_grad():
+    for src, tgt in test_loader:
+        src, tgt = src.to(device), tgt.to(device)
+        tgt_input = tgt[:, :-1]
+        tgt_output = tgt[:, 1:]
+
+        # Get outputs and attention weights
+        outputs, attn_weights = model(src, tgt_input)
+        preds = outputs.argmax(dim=-1)
+
+        for i in range(src.size(0)):
+            # Process source and target sequences
+            src_seq = "".join([inv_src_vocab[ix.item()] for ix in src[i] if ix.item() != 0])
+            tgt_seq = [inv_tgt_vocab[ix.item()] for ix in tgt_output[i] if ix.item() not in [0, 1, 2]]
+            pred_seq = [inv_tgt_vocab[ix.item()] for ix in preds[i] if ix.item() not in [0, 1, 2]]
+            
+            # Get attention weights for this sample (only store for first 10)
+            if len(attention_data) < 10:
+                src_chars = [inv_src_vocab[ix.item()] for ix in src[i] if ix.item() != 0]
+                tgt_chars = pred_seq
+                sample_attn = attn_weights[i, :len(tgt_chars), :len(src_chars)].cpu().numpy()
+                attention_data.append((src_chars, tgt_chars, sample_attn))
+
+            # Calculate accuracies
+            tgt_str = "".join(tgt_seq)
+            pred_str = "".join(pred_seq)
+            is_exact = (tgt_str == pred_str)
+
+            # Token-level accuracy
+            min_len = min(len(tgt_seq), len(pred_seq))
+            token_correct_sample = sum([tgt_seq[j] == pred_seq[j] for j in range(min_len)])
+            token_total_sample = max(len(tgt_seq), len(pred_seq))
+            token_acc_sample = token_correct_sample / token_total_sample if token_total_sample > 0 else 0
+
+            # Update global stats
+            token_correct += token_correct_sample
+            token_total += token_total_sample
+
+            # Store results
+            y_true_all.append(tgt_str)
+            y_pred_all.append(pred_str)
+            pred_table.append([
+                src_seq,
+                pred_str,
+                tgt_str,
+                "✔" if is_exact else "✘",
+                f"{token_acc_sample:.2%}"
+            ])
+
+# Saving predictions
+# Full predictions with all details
+csv_path = os.path.join(predictions_folder, "test_predictions_full.csv")
+with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(["Input", "Prediction", "Target", "Exact Match", "Token-Level Accuracy"])
+    for row in pred_table:
+        writer.writerow(row)
+
+# Simple submission format
+submission_csv_path = os.path.join(predictions_folder, "test_predictions_submission.csv")
+with open(submission_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(["Input", "Prediction"])
+    for row in pred_table:
+        writer.writerow([row[0], row[1]])
+
+print(f"Prediction files saved to {predictions_folder}/")
+
+# Attention mechanisms
+def plot_attention_grid(attention_data):
+    """Plot attention heatmaps in a grid layout (4x3 for up to 10 samples)"""
+    fig, axs = plt.subplots(4, 3, figsize=(20, 16))
+    axs = axs.flatten()
     
-    # Load model
-    model_path = args.model_path
-    if not os.path.exists(model_path):
-        print(f"❌ Model file not found: {model_path}")
-        return
-
-    model = Seq2Seq(
-        src_vocab_size=len(dataset.src_vocab),
-        tgt_vocab_size=len(dataset.tgt_vocab),
-        embed_size=256,
-        hidden_size=256,
-        num_encoder_layers=2,
-        num_decoder_layers=2,
-        dropout=0.4,
-        cell_type='gru'
-    ).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-
-    # Select 3 distinct samples (lines 1, 1000, 2000 in 1-based numbering)
-    test_size = len(dataset.test_data)
-    sample_indices = [
-        0,   # Line 1 (0-based index)
-        min(999, test_size-1),   # Line 1000
-        min(1999, test_size-1)   # Line 2000
-    ]
+    for idx, (src_chars, tgt_chars, attn_weights) in enumerate(attention_data):
+        if idx >= 10:  # Only plot up to 10 samples
+            break
+            
+        ax = axs[idx]
+        cax = ax.matshow(attn_weights, cmap='viridis')
+        
+        # Set axis labels
+        ax.set_xticks(range(len(src_chars)))
+        ax.set_yticks(range(len(tgt_chars)))
+        ax.set_xticklabels(src_chars, rotation=45, fontsize=9)
+        ax.set_yticklabels(tgt_chars, fontsize=9)
+        
+        ax.xaxis.set_ticks_position("bottom")
+        ax.set_title(f"Sample {idx+1}")
+        fig.colorbar(cax, ax=ax)
     
-    test_subset = Subset(dataset.test_data, sample_indices)
-    test_loader = DataLoader(
-        test_subset,
-        batch_size=1,
-        collate_fn=get_collate_fn(dataset),
-        shuffle=False
+    # Hide unused subplots
+    for i in range(len(attention_data), len(axs)):
+        axs[i].set_visible(False)
+    
+    plt.tight_layout()
+    return fig
+
+# Metrices calculation
+exact_matches = sum([1 for t, p in zip(y_true_all, y_pred_all) if t == p])
+exact_acc = 100 * exact_matches / len(y_true_all)
+token_acc = 100 * token_correct / token_total if token_total > 0 else 0
+
+print(f"Exact Match Test Accuracy: {exact_acc:.2f}%")
+print(f"Token-level Test Accuracy: {token_acc:.2f}%")
+
+# Confusion matrix
+def plot_char_confusion_matrix():
+    all_chars = sorted(set("".join(y_true_all + y_pred_all)))
+    char_to_idx = {ch: i for i, ch in enumerate(all_chars)}
+    true_chars, pred_chars = [], []
+
+    for t_seq, p_seq in zip(y_true_all, y_pred_all):
+        for t, p in zip(t_seq, p_seq):
+            true_chars.append(char_to_idx.get(t, -1))
+            pred_chars.append(char_to_idx.get(p, -1))
+
+    true_chars = np.array([i for i in true_chars if i >= 0])
+    pred_chars = np.array([i for i in pred_chars if i >= 0])
+
+    cm_token = confusion_matrix(true_chars, pred_chars, labels=range(len(all_chars)))
+    fig, ax = plt.subplots(figsize=(12, 10))
+    sns.heatmap(cm_token, xticklabels=all_chars, yticklabels=all_chars,
+                annot=False, fmt="d", cmap="coolwarm", ax=ax)
+    ax.set_title("Character-Level Confusion Matrix")
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+    plt.tight_layout()
+    return fig
+
+# Sequence level conusion matrix
+def plot_seq_confusion_matrix():
+    # Get top 20 most common sequences
+    pair_counts = Counter(zip(y_true_all, y_pred_all))
+    most_common_true = [x[0] for x in Counter(y_true_all).most_common(20)]
+    most_common_pred = [x[0] for x in Counter(y_pred_all).most_common(20)]
+
+    seq_cm = np.zeros((len(most_common_true), len(most_common_pred)), dtype=int)
+    for (t, p), count in pair_counts.items():
+        if t in most_common_true and p in most_common_pred:
+            i = most_common_true.index(t)
+            j = most_common_pred.index(p)
+            seq_cm[i, j] = count
+
+    fig, ax = plt.subplots(figsize=(14, 12))
+    sns.heatmap(seq_cm, xticklabels=most_common_pred, yticklabels=most_common_true,
+                annot=True, fmt="d", cmap="Blues", ax=ax)
+    ax.set_title("Sequence-Level Confusion Matrix (Top 20)")
+    ax.set_xlabel("Predicted Sequence")
+    ax.set_ylabel("True Sequence")
+    plt.tight_layout()
+    return fig
+
+#Wandb
+# Log metrics
+wandb.log({
+    "Exact Match Accuracy": exact_acc,
+    "Token-level Accuracy": token_acc
+})
+
+# Log prediction tables
+wandb.log({
+    "all_predictions": wandb.Table(
+        columns=["Input", "Prediction", "Target", "Exact Match", "Token-Level Accuracy"],
+        data=pred_table[:50]
+    ),
+    "exact_match_predictions": wandb.Table(
+        columns=["Input", "Prediction", "Target", "Exact Match", "Token-Level Accuracy"],
+        data=[row for row in pred_table if row[3] == "✔"][:50]
     )
-    
-    for batch_idx, (src, tgt) in enumerate(test_loader):
-        original_line_number = sample_indices[batch_idx] + 1  # Convert to 1-based
-        with torch.no_grad():
-            src, tgt = src.to(device), tgt.to(device)
-            
-            # Get attention weights
-            outputs, attn_weights = model(src, tgt[:, :-1])
-            attn_weights = attn_weights[0].cpu().numpy()
-            
-            # Decode sequences
-            src_chars = [
-                dataset.src_vocab.get(int(ix), '') 
-                for ix in src[0].cpu().numpy() 
-                if ix not in [0, 1, 2]
-            ]
-            pred_chars = [
-                dataset.tgt_vocab.get(int(ix), '') 
-                for ix in outputs.argmax(-1)[0].cpu().numpy()
-                if ix not in [0, 2]
-            ]
+})
 
-            # Generate visualization
-            if len(pred_chars) > 0:
-                filename = f'attention_line_{original_line_number}.gif'
-                create_visualization(src_chars, pred_chars, attn_weights, filename)
-                print(f"✅ Saved visualization for line {original_line_number}")
+# Log attention heatmaps
+if attention_data:
+    attn_fig = plot_attention_grid(attention_data)
+    wandb.log({"attention_heatmaps": wandb.Image(attn_fig)})
+    plt.close(attn_fig)
 
-if __name__ == "__main__":
-    main()
+# Log confusion matrices
+char_cm_fig = plot_char_confusion_matrix()
+wandb.log({"confusion_matrix_character": wandb.Image(char_cm_fig)})
+plt.close(char_cm_fig)
+
+seq_cm_fig = plot_seq_confusion_matrix()
+wandb.log({"confusion_matrix_sequence": wandb.Image(seq_cm_fig)})
+plt.close(seq_cm_fig)
+
+print("Evaluation and logging complete.")
