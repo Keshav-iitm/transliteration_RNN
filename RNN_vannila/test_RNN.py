@@ -13,33 +13,34 @@ from dataset_RNN import DakshinaDataset
 from model_RNN import Seq2Seq
 from train_RNN import get_collate_fn
 
-# Arg parse
-parser = argparse.ArgumentParser()
-parser.add_argument('--model_path', type=str, default='best_model_9wrhl7f9.pt',
-                    help='Path to the best model file')
+import argparse
+import torch
+from torch.utils.data import DataLoader
+import wandb
+
+# Argument Parser
+parser = argparse.ArgumentParser(description="Evaluate trained Seq2Seq model on test set")
+parser.add_argument('--model_path', type=str, default='best_model_9wrhl7f9.pt', help='Path to the best model file')
+parser.add_argument('--data_dir', type=str, default='./dakshina_dataset_v1.0', help='Path to the dataset directory')
+parser.add_argument('--lang', type=str, default='ta', help='Language code')
+parser.add_argument('--embed_size', type=int, default=128, help='Size of the embedding vectors')
+parser.add_argument('--hidden_size', type=int, default=256, help='Size of the hidden layers')
+parser.add_argument('--num_encoder_layers', type=int, default=2, help='Number of layers in the encoder')
+parser.add_argument('--num_decoder_layers', type=int, default=2, help='Number of layers in the decoder')
+parser.add_argument('--cell_type', type=str, choices=['lstm', 'gru'], default='lstm', help='RNN cell type to use')
+parser.add_argument('--init_method', type=str, choices=['xavier', 'kaiming', 'normal'], default='xavier', help='Weight initialization method')
+parser.add_argument('--dropout', type=float, default=0.4, help='Dropout probability')
+parser.add_argument('--batch_size', type=int, default=16, help='Batch size for evaluation')
 args = parser.parse_args()
 
-# Wandb
+# Set device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Initialize wandb
 wandb.init(project="RNN-Transliteration", name="final_test_eval")
 
-# Config
-config = {
-    'data_dir': './dakshina_dataset_v1.0',
-    'lang': 'ta',
-    'embed_size': 128,
-    'hidden_size': 256,
-    'num_encoder_layers': 2,
-    'num_decoder_layers': 2,
-    'cell_type': 'lstm',
-    'init_method': 'xavier',
-    'dropout': 0.4,
-    'batch_size': 16,
-    'device': 'cuda' if torch.cuda.is_available() else 'cpu'
-}
-device = torch.device(config['device'])
-
-# Data and vocabs
-dataset = DakshinaDataset(config['data_dir'], config['lang'])
+# Load data
+dataset = DakshinaDataset(args.data_dir, args.lang)
 src_vocab = dataset.src_vocab
 tgt_vocab = dataset.tgt_vocab
 inv_src_vocab = {v: k for k, v in src_vocab.items()}
@@ -47,22 +48,25 @@ inv_tgt_vocab = {v: k for k, v in tgt_vocab.items()}
 
 test_data = dataset.test_data
 collate_fn = get_collate_fn(src_vocab, tgt_vocab)
-test_loader = DataLoader(test_data, batch_size=config['batch_size'], shuffle=False, collate_fn=collate_fn)
+test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
 
 # Load model
 model = Seq2Seq(
     src_vocab_size=len(src_vocab),
     tgt_vocab_size=len(tgt_vocab),
-    embed_size=config['embed_size'],
-    hidden_size=config['hidden_size'],
-    num_encoder_layers=config['num_encoder_layers'],
-    num_decoder_layers=config['num_decoder_layers'],
-    dropout=config['dropout'],
-    cell_type=config['cell_type'],
-    init_method=config['init_method']
+    embed_size=args.embed_size,
+    hidden_size=args.hidden_size,
+    num_encoder_layers=args.num_encoder_layers,
+    num_decoder_layers=args.num_decoder_layers,
+    dropout=args.dropout,
+    cell_type=args.cell_type,
+    init_method=args.init_method
 ).to(device)
+
 model.load_state_dict(torch.load(args.model_path, map_location=device))
 model.eval()
+
+
 
 # Inferences
 y_true_all, y_pred_all, pred_table = [], [], []
