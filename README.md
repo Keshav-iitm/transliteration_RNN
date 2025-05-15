@@ -50,7 +50,7 @@ RNN_assign3-main/
 
 ### 📌 IMPORTANT:
 
-- If the `dhakshina_dataset_v1.0/` and `best_model_file` dataset is placed **inside `RNN_vannila/`** and **inside `RNN_attention/`** (**Recommended**)
+- The `dhakshina_dataset_v1.0/` and `best_model_file` dataset is placed **inside `RNN_vannila/`** and **inside `RNN_attention/`** (**Recommended**)
 - If placed **anywhere else (e.g., in parent folder)**, just use `--data_dir`. (**⚠️ this might not work in  every script**)
 - Donot run the scripts from the parent folder. Please use the respective folders.
 ---

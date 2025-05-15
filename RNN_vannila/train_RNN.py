@@ -9,7 +9,7 @@ from model_RNN import Seq2Seq
 from dataset_RNN import DakshinaDataset
 
 def print_device_info(device):
-    if device == 'cuda':
+    if device.type == 'cuda':
         print(f"🚀 Using CUDA device: {torch.cuda.get_device_name(0)}")
         print(f"    Memory Allocated: {torch.cuda.memory_allocated()/1024**2:.2f} MB")
         print(f"    Memory Cached: {torch.cuda.memory_reserved()/1024**2:.2f} MB")
@@ -34,41 +34,44 @@ def get_collate_fn(src_vocab, tgt_vocab):
         max_src_len = max(len(seq) for seq in src_seqs)
         max_tgt_len = max(len(seq) for seq in tgt_seqs)
 
-       
-
-        # The actual padding happens here
         src_padded = [
             [src_vocab[ch] for ch in seq] + [0] * (max_src_len - len(seq))
             for seq in src_seqs
-            ]
+        ]
         tgt_padded = [
             [1] + [tgt_vocab[ch] for ch in seq] + [2] + [0] * (max_tgt_len - len(seq))
             for seq in tgt_seqs
-            ]
-
+        ]
 
         return torch.tensor(src_padded), torch.tensor(tgt_padded)
-
     return collate_fn
-
 
 def train(config=None):
     with wandb.init(config=config, project="RNN-Transliteration", group=config.lang if config else None) as run:
         config = wandb.config 
+        
+        # Dynamic GPU detection
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print_device_info(device)
 
         run.name = (
-            f"{config.cell_type}_{config.lang}_embd{config.embed_size}_hs{config.hidden_size}"
-            f"_en{config.num_encoder_layers}_de{config.num_decoder_layers}_do{config.dropout}"
-            f"_bw{getattr(config, 'beam_width', 'NA')}_bs{config.batch_size}_lr{config.learning_rate:.1e}"
+            f"{config.cell_type}_bw{config.beam_width}_{config.lang}_"
+            f"emb{config.embed_size}hs{config.hidden_size}_"
+            f"en{config.num_encoder_layers}de{config.num_decoder_layers}_"
+            f"do{config.dropout}_tf{config.teacher_forcing_ratio}_"
+            f"bs{config.batch_size}_lr{config.learning_rate:.1e}"
         )
         print(f"\n=== Starting training run {wandb.run.name} ===")
-        device = torch.device(config.device)
-        print_device_info(config.device)
 
         dataset = DakshinaDataset(config.data_dir, config.lang)
-        global src_vocab, tgt_vocab
         src_vocab = dataset.src_vocab
         tgt_vocab = dataset.tgt_vocab
+
+        # Verify data direction
+        print("\nSample training pairs (Latin → Native):")
+        for i in range(3):
+            src, tgt = dataset.train_data[i]
+            print(f"{src} → {tgt}")
 
         train_dataset = TransliterationDataset(dataset.train_data, src_vocab, tgt_vocab)
         val_dataset = TransliterationDataset(dataset.val_data, src_vocab, tgt_vocab)
@@ -78,7 +81,7 @@ def train(config=None):
             train_dataset,
             batch_size=config.batch_size,
             shuffle=True,
-            pin_memory=(config.device == 'cuda'),
+            pin_memory=(device.type == 'cuda'),
             collate_fn=collate,
             drop_last=True
         )
@@ -86,11 +89,10 @@ def train(config=None):
         val_loader = DataLoader(
             val_dataset,
             batch_size=config.batch_size,
-            pin_memory=(config.device == 'cuda'),
+            pin_memory=(device.type == 'cuda'),
             collate_fn=collate,
             drop_last=True
         )
-
 
         model = Seq2Seq(
             src_vocab_size=len(src_vocab),
@@ -112,17 +114,17 @@ def train(config=None):
             start_time = time.time()
             model.train()
             train_loss = train_acc = train_total = 0
-
+            
             for src, tgt in tqdm(train_loader, desc=f"Epoch {epoch+1}/{config.epochs} [Train]"):
                 src, tgt = src.to(device), tgt.to(device)
                 tgt_input = tgt[:, :-1]
                 tgt_output = tgt[:, 1:]
 
                 optimizer.zero_grad()
-                outputs = model(src,tgt_input)
-
+                outputs = model(src, tgt_input)
                 loss = criterion(outputs.view(-1, len(tgt_vocab)), tgt_output.reshape(-1))
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
 
                 train_loss += loss.item()
@@ -138,9 +140,9 @@ def train(config=None):
                     tgt_input = tgt[:, :-1]
                     tgt_output = tgt[:, 1:]
 
-                    outputs = model(src,tgt_input)
-
+                    outputs = model(src, tgt_input)
                     loss = criterion(outputs.view(-1, len(tgt_vocab)), tgt_output.reshape(-1))
+                    
                     val_loss += loss.item()
                     preds = outputs.argmax(dim=-1)
                     val_acc += (preds == tgt_output).sum().item()
@@ -162,7 +164,8 @@ def train(config=None):
                 'train_acc': train_acc,
                 'val_loss': val_loss / len(val_loader),
                 'val_acc': val_acc,
-                'learning_rate': optimizer.param_groups[0]['lr']
+                'learning_rate': optimizer.param_groups[0]['lr'],
+                'beam_width': config.beam_width
             })
 
             print(f"\n⏱️ Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
@@ -170,22 +173,7 @@ def train(config=None):
         print(f"\n🏆 Best validation accuracy: {best_val_acc:.2f}%")
 
 def get_sweep_config():
-    sweep_params = {
-        'embed_size': {'values': [64, 128, 256]},
-        'hidden_size': {'values': [128, 256]},
-        'num_encoder_layers': {'values': [1, 2]},
-        'num_decoder_layers': {'values': [1, 2]},
-        'cell_type': {'values': ['lstm', 'gru', 'rnn']},
-        'init_method': {'values': ['xavier', 'he', 'default']},
-        'dropout': {'values': [0.0, 0.2, 0.4]},
-        'learning_rate': {'min': 1e-5, 'max': 1e-3, 'distribution': 'log_uniform_values'},
-        'batch_size': {'values': [16, 32, 64]},
-        'beam_width': {'values': [1, 3, 5]},
-    }
-
-    sweep_name = f"translit-sweep-{wandb.util.generate_id()}"
     return {
-        'name': sweep_name,
         'method': 'bayes',
         'metric': {'name': 'val_acc', 'goal': 'maximize'},
         'parameters': {
@@ -193,7 +181,17 @@ def get_sweep_config():
             'lang': {'value': 'ta'},
             'epochs': {'value': 20},
             'device': {'value': 'cuda' if torch.cuda.is_available() else 'cpu'},
-            **sweep_params
+            'teacher_forcing_ratio': {'values': [0.5, 0.7, 1.0]},
+            'beam_width': {'values': [1, 3, 5]},
+            'embed_size': {'values': [128, 256]},
+            'hidden_size': {'values': [256, 512]},
+            'num_encoder_layers': {'values': [1, 2]},
+            'num_decoder_layers': {'values': [1, 2]},
+            'cell_type': {'values': ['rnn','lstm', 'gru']},
+            'dropout': {'values': [0.2, 0.3]},
+            'learning_rate': {'min': 1e-4, 'max': 1e-3},
+            'batch_size': {'values': [32, 64]},
+            'init_method': {'values': ['xavier', 'he', 'default']}
         }
     }
 
@@ -205,19 +203,26 @@ def main():
     args = parser.parse_args()
 
     if args.sweep:
-        sweep_id = wandb.sweep(get_sweep_config(), project="RNN-Transliteration")
-        wandb.agent(sweep_id, function=train, count=200)
+        sweep_id = wandb.sweep(get_sweep_config(), project="Eng_tamil-Transliteration")
+        wandb.agent(sweep_id, function=train, count=50)
     else:
-        # sweep_defaults = get_sweep_config()['parameters']
-        # config = {k: v['value'] if 'value' in v else v['values'][0] for k, v in sweep_defaults.items()}
-        sweep_config = get_sweep_config()
-        sweep_defaults = sweep_config['parameters']
         config = {
-            k: (v['value'] if 'value' in v else v['values'][0])
-            for k, v in sweep_defaults.items()
-        }   
-
-        config.update({'data_dir': args.data_dir, 'lang': args.lang})
+            'data_dir': args.data_dir,
+            'lang': args.lang,
+            'epochs': 20,
+            'device': 'cuda' if torch.cuda.is_available() else 'cpu',
+            'teacher_forcing_ratio': 0.7,
+            'beam_width': 3,
+            'embed_size': 256,
+            'hidden_size': 512,
+            'num_encoder_layers': 2,
+            'num_decoder_layers': 2,
+            'cell_type': 'lstm',
+            'dropout': 0.3,
+            'learning_rate': 0.001,
+            'batch_size': 64,
+            'init_method': 'xavier'
+        }
         train(config=config)
 
 if __name__ == '__main__':

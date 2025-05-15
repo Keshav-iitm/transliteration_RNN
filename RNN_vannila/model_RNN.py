@@ -3,85 +3,95 @@ import torch
 import torch.nn as nn
 
 class Seq2Seq(nn.Module):
-    def __init__(self, src_vocab_size, tgt_vocab_size, 
+    def __init__(self, src_vocab_size, tgt_vocab_size,  # src=Latin, tgt=Devanagari
                  embed_size=128, hidden_size=256,
-                 num_encoder_layers=1,num_decoder_layers=1, dropout=0.3,
+                 num_encoder_layers=1, num_decoder_layers=1, dropout=0.3,
                  cell_type='lstm', init_method='xavier'):
         super(Seq2Seq, self).__init__()
         
-        self.encoder = Encoder(src_vocab_size, embed_size, 
-                               hidden_size, num_encoder_layers, 
-                               dropout, cell_type, init_method)
+        # ENCODER: Processes Latin characters (English input)
+        self.encoder = Encoder(
+            src_vocab_size,  # Must be Latin vocabulary size
+            embed_size, 
+            hidden_size, 
+            num_encoder_layers, 
+            dropout, 
+            cell_type, 
+            init_method
+        )
         
-        self.decoder = Decoder(tgt_vocab_size, embed_size,
-                               hidden_size, num_decoder_layers,
-                               dropout, cell_type, init_method)
+        # DECODER: Generates Devanagari characters (Native output)
+        self.decoder = Decoder(
+            tgt_vocab_size,  # Must be Devanagari vocabulary size
+            embed_size,
+            hidden_size,
+            num_decoder_layers,
+            dropout, 
+            cell_type, 
+            init_method
+        )
 
     def forward(self, src, tgt):
-        # Forward pass through the encoder
+        # src: Latin sequences, tgt: Devanagari sequences
         encoder_outputs, hidden = self.encoder(src)
-        #hidden
         hidden = self._adapt_hidden(hidden)
-        
-        # Handle the initial hidden state from encoder, ensure batch size consistency
-        output,_ = self.decoder(tgt, hidden)
-        
+        output, _ = self.decoder(tgt, hidden)
         return output
 
     def _adapt_hidden(self, hidden):
-        # print("Encoder hidden shape:", hidden[0].shape if isinstance(hidden, tuple) else hidden.shape)
-        # print("Decoder expected layers:", self.decoder.rnn.num_layers)
         def pad_or_truncate(h, target_layers):
             current_layers = h.size(0)
             if current_layers == target_layers:
                 return h
             elif current_layers > target_layers:
                 return h[:target_layers]
-            else:  # pad with zeros
+            else:
                 pad_shape = (target_layers - current_layers, *h.shape[1:])
                 padding = h.new_zeros(pad_shape)
                 return torch.cat([h, padding], dim=0)
 
-        
-        
-        
-
-        if isinstance(hidden, tuple):  # LSTM
+        if isinstance(hidden, tuple):
             h, c = hidden
             h = pad_or_truncate(h, self.decoder.rnn.num_layers)
             c = pad_or_truncate(c, self.decoder.rnn.num_layers)
             return (h, c)
-        else:  # GRU or RNN
+        else:
             return pad_or_truncate(hidden, self.decoder.rnn.num_layers)
-
-    
-
 
 class Encoder(nn.Module):
     def __init__(self, vocab_size, embed_size, hidden_size,
                  num_encoder_layers, dropout, cell_type, init_method):
         super(Encoder, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, embed_size)
+        self.embedding = nn.Embedding(vocab_size, embed_size)  # Latin embeddings
         self.rnn = self._get_rnn_cell(embed_size, hidden_size,
-                                      num_encoder_layers, dropout, cell_type)
+                                    num_encoder_layers, dropout, cell_type)
         self.init_weights(init_method)
 
     def _get_rnn_cell(self, embed_size, hidden_size, 
-                      num_encoder_layers, dropout, cell_type):
+                    num_encoder_layers, dropout, cell_type):
         if cell_type.lower() == 'lstm':
-            return nn.LSTM(embed_size, hidden_size, num_encoder_layers,
-                           dropout=dropout if num_encoder_layers > 1 else 0, batch_first=True)
+            return nn.LSTM(
+                embed_size, hidden_size, num_encoder_layers,
+                dropout=dropout if num_encoder_layers > 1 else 0, 
+                batch_first=True
+            )
         elif cell_type.lower() == 'gru':
-            return nn.GRU(embed_size, hidden_size, num_encoder_layers,
-                          dropout=dropout if num_encoder_layers > 1 else 0, batch_first=True)
+            return nn.GRU(
+                embed_size, hidden_size, num_encoder_layers,
+                dropout=dropout if num_encoder_layers > 1 else 0, 
+                batch_first=True
+            )
         else:
-            return nn.RNN(embed_size, hidden_size, num_encoder_layers,
-                          nonlinearity='tanh', dropout=dropout if num_encoder_layers > 1 else 0, batch_first=True)
+            return nn.RNN(
+                embed_size, hidden_size, num_encoder_layers,
+                nonlinearity='tanh', 
+                dropout=dropout if num_encoder_layers > 1 else 0, 
+                batch_first=True
+            )
 
     def init_weights(self, method):
         gain = nn.init.calculate_gain('tanh')
         nn.init.xavier_uniform_(self.embedding.weight)
-
         for name, param in self.rnn.named_parameters():
             if 'weight' in name:
                 if method == 'xavier':
@@ -94,40 +104,48 @@ class Encoder(nn.Module):
         outputs, hidden = self.rnn(embedded)
         return outputs, hidden
 
-
 class Decoder(nn.Module):
     def __init__(self, vocab_size, embed_size, hidden_size,
                  num_decoder_layers, dropout, cell_type, init_method):
         super(Decoder, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, embed_size)
+        self.embedding = nn.Embedding(vocab_size, embed_size)  # Devanagari embeddings
         self.rnn = self._get_rnn_cell(embed_size, hidden_size,
-                                      num_decoder_layers, dropout, cell_type)
-        self.fc = nn.Linear(hidden_size, vocab_size)
+                                    num_decoder_layers, dropout, cell_type)
+        self.fc = nn.Linear(hidden_size, vocab_size)  # Devanagari output
+        
         self.init_weights(init_method)
 
     def _get_rnn_cell(self, embed_size, hidden_size, 
-                      num_decoder_layers, dropout, cell_type):
+                    num_decoder_layers, dropout, cell_type):
         if cell_type.lower() == 'lstm':
-            return nn.LSTM(embed_size, hidden_size, num_decoder_layers,
-                           dropout=dropout if num_decoder_layers > 1 else 0, batch_first=True)
+            return nn.LSTM(
+                embed_size, hidden_size, num_decoder_layers,
+                dropout=dropout if num_decoder_layers > 1 else 0, 
+                batch_first=True
+            )
         elif cell_type.lower() == 'gru':
-            return nn.GRU(embed_size, hidden_size, num_decoder_layers,
-                          dropout=dropout if num_decoder_layers > 1 else 0, batch_first=True)
+            return nn.GRU(
+                embed_size, hidden_size, num_decoder_layers,
+                dropout=dropout if num_decoder_layers > 1 else 0, 
+                batch_first=True
+            )
         else:
-            return nn.RNN(embed_size, hidden_size, num_decoder_layers,
-                          nonlinearity='tanh', dropout=dropout if num_decoder_layers > 1 else 0, batch_first=True)
+            return nn.RNN(
+                embed_size, hidden_size, num_decoder_layers,
+                nonlinearity='tanh', 
+                dropout=dropout if num_decoder_layers > 1 else 0, 
+                batch_first=True
+            )
 
     def init_weights(self, method):
         gain = nn.init.calculate_gain('tanh')
         nn.init.xavier_uniform_(self.embedding.weight)
-
         for name, param in self.rnn.named_parameters():
             if 'weight' in name:
                 if method == 'xavier':
                     nn.init.xavier_normal_(param.data, gain=gain)
                 elif method == 'he':
                     nn.init.kaiming_normal_(param.data, nonlinearity='tanh')
-
         nn.init.xavier_normal_(self.fc.weight.data)
         nn.init.constant_(self.fc.bias.data, 0)
 
@@ -158,23 +176,20 @@ class Decoder(nn.Module):
                     candidate = (seq + [char_idx], score + char_prob, hidden_next)
                     all_candidates.append(candidate)
 
-            # Select top beam_width sequences
             sequences = sorted(all_candidates, key=lambda x: x[1], reverse=True)[:beam_width]
-
-            # If all sequences end in <eos>, stop early
             if all(seq and seq[-1] == eos_idx for seq, _, _ in sequences):
                 break
 
         best_seq = sequences[0][0]
         return best_seq
 
-
-
-
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--src_vocab_size', type=int, default=10000)
-    parser.add_argument('--tgt_vocab_size', type=int, default=10000)
+    # Critical parameters - must match data vocabulary sizes
+    parser.add_argument('--src_vocab_size', type=int, default=10000,  # Latin
+                        help='Must be size of Latin/English vocabulary')
+    parser.add_argument('--tgt_vocab_size', type=int, default=10000,  # Devanagari 
+                        help='Must be size of native script vocabulary')
     parser.add_argument('--embed_size', type=int, default=128)
     parser.add_argument('--hidden_size', type=int, default=256)
     parser.add_argument('--num_encoder_layers', type=int, default=1)
@@ -188,8 +203,18 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    model = Seq2Seq(args.src_vocab_size, args.tgt_vocab_size,
-                    args.embed_size, args.hidden_size,
-                    args.num_encoder_layers,args.num_decoder_layers, args.dropout,
-                    args.cell_type, args.init_method)
+    # When initializing: 
+    # - src_vocab_size = len(latin_tokenizer)
+    # - tgt_vocab_size = len(devanagari_tokenizer)
+    model = Seq2Seq(
+        args.src_vocab_size, 
+        args.tgt_vocab_size,
+        args.embed_size, 
+        args.hidden_size,
+        args.num_encoder_layers,
+        args.num_decoder_layers, 
+        args.dropout,
+        args.cell_type, 
+        args.init_method
+    )
     print(model)

@@ -47,7 +47,7 @@ def get_collate_fn(dataset):
     return collate_fn
 
 def train(config=None):
-    with wandb.init(config=config, project="RNN-Transliteration-Attention", group=config.lang if config else None) as run:
+    with wandb.init(config=config, project="Eng_tamil-Transliteration", group=config.lang if config else None) as run:
         config = wandb.config 
 
         run.name = (
@@ -209,8 +209,8 @@ def main():
     args = parser.parse_args()
 
     if args.sweep:
-        sweep_id = wandb.sweep(get_sweep_config(), project="RNN-Transliteration-Attention")
-        wandb.agent(sweep_id, function=train, count=80)
+        sweep_id = wandb.sweep(get_sweep_config(), project="Eng_tamil-Transliteration")
+        wandb.agent(sweep_id, function=train, count=40)
     else:
         sweep_config = get_sweep_config()
         sweep_defaults = sweep_config['parameters']
