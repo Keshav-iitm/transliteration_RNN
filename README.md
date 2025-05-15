@@ -31,18 +31,15 @@ RNN_assign3-main/
 │   └── dhakshina_dataset_v1.0/   # Dataset folder for attention RNN
 │
 ├── connectivity_gifs/           # Visualizations of attention weights over training for 3 different samples
-│   ├── sample 1 (gru.gif ; lstm.gif)
-│   ├── sample 2 (gru.gif ; lstm.gif)
-│   └── sample 3 (gru.gif ; lstm.gif)
+│   ├── sample 1 (gru_line_1.gif ; lstm_line_1.gif)
+│   ├── sample 2 (gru_line_1000.gif ; lstm_line_1000.gif)
+│   └── sample 3 (gru_line_2000.gif ; lstm_line_2000.gif)
 │
 ├── predictions_attention/
 │   ├── test_predictions.csv              # Basic prediction output
-│   ├── test_predictions_full.csv         # Full prediction logs with scores
-│   └── test_predictions_submission.csv   # Native-english format
 │
 ├── predictions_vanilla/
 │   └── test_predictions.csv              # Predictions from vanilla RNN
-│   ├── test_predictions_with_accuracy.csv
 ├── .gitignore
 ├── LICENSE
 ├── README.md
@@ -54,6 +51,7 @@ RNN_assign3-main/
 - If placed **anywhere else (e.g., in parent folder)**, just use `--data_dir`. (**⚠️ this might not work in  every script**)
 - Donot run the scripts from the parent folder. Please use the respective folders.
 ---
+## Link to download the dataset : https://github.com/google-research-datasets/dakshina
 
 ## ⚙️ Environment Setup (Tested with CUDA GPU)
 
@@ -90,7 +88,6 @@ pip install imageio==2.9.0
 ### ✅ Always run from the respective folders `RNN_assign3-main/RNN_vannila` or `RNN_assign3-main/RNN_attention`  using this format:
 
 ```bash
-python <script_name.py> [--arguments]
 python <script_name.py> [--arguments]
 ```
 
@@ -150,7 +147,7 @@ python train_RNN.py --sweep
 **Argparse options**:
 - `--data_dir` #should be specified if is not in RNN_vannila folder
 - `--lang`
-- `--sweep`
+- `--sweep` #should be specified specifically.
 
 #best_model_<name>.pt will automatically be saved.
 ---
@@ -174,9 +171,11 @@ python test_RNN.py
 - `--init_method`
 - `--dropout`
 - `--batch_size`
+- `--wandb_project`
 #based on users best hyperparamter combinations. Default is set with respect to the obtained best model.
 #produces confusion matrix token level and prediction tables in WandB.
 #displayes exact and token level accuracy.
+#3*3 heatmap is generated.
 ---
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ### ✅ RNN_attention/ Scripts  - RNN with attention 
@@ -228,7 +227,7 @@ python train_att_RNN.py --sweep
 **Argparse options**:
 - `--data_dir` #should be specified if is not in RNN_attention folder
 - `--lang`
-- `--sweep`
+- `--sweep` #should be specified specifically.
 
 #generates hyperparameter combination sweeps for attention RNN in WandB.
 ---
