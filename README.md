@@ -2,7 +2,7 @@
 
 
 # 🔗 [GitHub Repository] https://github.com/Keshav-iitm/RNN_assign3.git
-# 📊 [WandB Project Link] https://wandb.ai/ae24s021-indian-institute-of-technology-madras/RNN-Transliteration/reports/Assignment-3_RNN--VmlldzoxMjcwOTgyNg?accessToken=0a8alnduag53zg9q48od9g6fgcca6hn657g5vpazacrif27yxmxxgr1tpqrwczs6
+# 📊 [WandB Project Link] https://api.wandb.ai/links/ae24s021-indian-institute-of-technology-madras/13461qv6
 
 
 This repository contains implementations of sequence-to-sequence models using Recurrent Neural Networks (RNNs) for English-native language transliteration. The project is part of an assignment focusing on vanilla and attention-based RNNs.
