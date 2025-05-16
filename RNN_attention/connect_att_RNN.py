@@ -69,7 +69,7 @@ def create_visualization(src_chars, tgt_chars, attn_weights, filename):
 
 def create_connectivity_visualization(src_chars, tgt_chars, attn_weights, filename):
     """Create connectivity visualization showing attention alignment between input and output"""
-    # Ensure we only use valid dimensions
+    # Ensuring valid dimensions
     attention_matrix = attn_weights[:len(tgt_chars), :len(src_chars)]
     
     fig = plt.figure(figsize=(max(8, len(src_chars)*0.7), max(6, len(tgt_chars)*0.7)), dpi=150)
@@ -162,11 +162,11 @@ def main():
             pred_chars = [inv_tgt_vocab[idx.item()] for idx in outputs.argmax(-1)[0] if idx.item() not in [0, 1, 2]]
 
             if len(pred_chars) > 0:
-                # Create original frame-by-frame visualization (preserved)
+                # Create original frame-by-frame visualization 
                 gif_filename = f'attention_line_{original_line_number}.gif'
                 create_visualization(src_chars, pred_chars, attn_weights, gif_filename)
                 
-                # Create new connectivity visualization (added)
+                # Create new connectivity visualization 
                 conn_filename = f'connectivity_line_{original_line_number}.png'
                 create_connectivity_visualization(src_chars, pred_chars, attn_weights, conn_filename)
                 
