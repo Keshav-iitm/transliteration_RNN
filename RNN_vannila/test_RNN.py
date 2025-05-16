@@ -14,7 +14,7 @@ from dataset_RNN import DakshinaDataset
 from model_RNN import Seq2Seq
 from train_RNN import get_collate_fn
 
-# ================== FONT CONFIGURATION ==================
+# FONT CONFIGURATION
 try:
     # Tamil font configuration
     tamil_font_path = '/usr/share/fonts/truetype/noto/NotoSansTamil-Regular.ttf'
@@ -31,7 +31,7 @@ except Exception as e:
 
 # Clear matplotlib cache
 mpl.rcParams.update(mpl.rcParamsDefault)
-# ========================================================
+
 
 # Argument Parser
 parser = argparse.ArgumentParser(description="Evaluate trained Seq2Seq model on test set")
@@ -138,9 +138,7 @@ token_level_acc = sum(p['token_accuracy'] for p in predictions) / len(prediction
 print(f"\n{'Exact Match Accuracy:':<25} {exact_match_acc:.2%}")
 print(f"{'Token-level Accuracy:':<25} {token_level_acc:.2%}")
 
-# ================== VISUALIZATIONS ==================
-# ================== CONFUSION MATRIX ==================
-# ================== CONFUSION MATRIX WITH PERCENTAGES ==================
+#  CONFUSION MATRIX WITH PERCENTAGES
 true_labels = []
 pred_labels = []
 for p in predictions:
