@@ -11,7 +11,7 @@ class DakshinaDataset:
         self.val_data = self.load_data('dev')
         self.test_data = self.load_data('test')
         
-        # Corrected: Source=Latin, Target=Native
+        # Source=Latin, Target=Native
         self.src_vocab = self.build_vocab([x[0] for x in self.train_data])  # Latin
         self.tgt_vocab = self.build_vocab([x[1] for x in self.train_data])  # Native
 
@@ -29,7 +29,6 @@ class DakshinaDataset:
                 for line in f:
                     parts = line.strip().split('\t')
                     if len(parts) >= 3:
-                        # Corrected: Swap source and target
                         roman = parts[1].strip()  # Latin input (source)
                         native = parts[0].strip()  # Native output (target)
                         data.append((roman, native))  # (source, target)
@@ -55,7 +54,7 @@ def get_collate_fn(dataset):
         tgt_padded = []
 
         for src, tgt in zip(src_seqs, tgt_seqs):
-            # Corrected: Source=Latin, Target=Native
+            # Source=Latin, Target=Native
             src_idx = [dataset.src_vocab[c] for c in src]  # Latin indices
             tgt_idx = [1] + [dataset.tgt_vocab[c] for c in tgt] + [2]  # Native indices
 
@@ -90,7 +89,7 @@ if __name__ == '__main__':
     print(f"Source (Latin) vocab size: {len(dataset.src_vocab)}")
     print(f"Target (Native) vocab size: {len(dataset.tgt_vocab)}")
     
-    # Added: Verify data direction with samples
+    # Verify data direction with samples
     print("\nFirst 5 training pairs (Latin → Native):")
     for i in range(5):
         src, tgt = dataset.train_data[i]
