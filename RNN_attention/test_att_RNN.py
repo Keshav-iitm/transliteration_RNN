@@ -13,7 +13,7 @@ from sklearn.metrics import confusion_matrix
 from dataset_att_RNN import DakshinaDataset, get_collate_fn
 from model_att_RNN import Seq2Seq
 
-# ================== FONT CONFIGURATION ==================
+#FONT CONFIGURATION
 try:
     tamil_font_path = '/usr/share/fonts/truetype/noto/NotoSansTamil-Regular.ttf'
     tamil_font = mpl.font_manager.FontProperties(fname=tamil_font_path)
@@ -26,7 +26,7 @@ except Exception as e:
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 mpl.rcParams['font.family'] = 'DejaVu Sans'
-# ========================================================
+
 
 # Argument Parser
 parser = argparse.ArgumentParser(description="Evaluate attention-based Seq2Seq model")
@@ -144,8 +144,7 @@ with torch.no_grad(), open(os.path.join(predictions_dir, 'test_predictions.csv')
 exact_match_acc = sum(p['exact_match'] for p in predictions) / len(predictions)
 token_level_acc = token_correct / token_total
 
-# ================== CONFUSION MATRIX ==================
-# ================== CONFUSION MATRIX WITH PERCENTAGES ==================
+# CONFUSION MATRIX WITH PERCENTAGES 
 true_labels = []
 pred_labels = []
 for p in predictions:
@@ -209,7 +208,7 @@ plt.ylabel('Actual Characters', **english_font, labelpad=15)
 plt.tight_layout()
 wandb.log({'confusion_matrix': wandb.Image(plt)})
 plt.close()
-# ================== 4x3 ATTENTION HEATMAPS ==================
+#  4x3 ATTENTION HEATMAPS 
 def plot_attention_grid():
     fig = plt.figure(figsize=(24, 32))
     axs = fig.subplots(4, 3)
@@ -243,7 +242,7 @@ attention_fig = plot_attention_grid()
 wandb.log({'attention_heatmaps_4x3': wandb.Image(attention_fig)})
 plt.close(attention_fig)
 
-# ================== WANDB TABLE LOGGING ==================
+# = WANDB TABLE LOGGING
 df = pd.DataFrame(predictions)
 df['token_accuracy'] = df['token_accuracy'].apply(lambda x: f"{x*100:.1f}%")
 wandb.log({'predictions': wandb.Table(dataframe=df)})
