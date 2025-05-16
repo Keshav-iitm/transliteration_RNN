@@ -2,7 +2,7 @@
 
 
 # 🔗 [GitHub Repository] https://github.com/Keshav-iitm/RNN_assign3.git
-# 📊 [WandB Project Link] https://api.wandb.ai/links/ae24s021-indian-institute-of-technology-madras/13461qv6
+# 📊 [WandB Project Link] https://api.wandb.ai/links/ae24s021-indian-institute-of-technology-madras/yw8aerb6
 
 
 This repository contains implementations of sequence-to-sequence models using Recurrent Neural Networks (RNNs) for English-native language transliteration. The project is part of an assignment focusing on vanilla and attention-based RNNs.
@@ -19,7 +19,7 @@ RNN_assign3-main/
 │   ├── model_RNN.py              # Defines the vanilla RNN architecture
 │   ├── dataset_RNN.py            # Loads and prepares dataset for vanilla RNN
 │   ├── best_model_*.pt           # Saved best-performing vanilla RNN model
-│   └── dhakshina_dataset_v1.0/   # Dataset folder for vanilla RNN
+│   └── dhakshina_dataset_v1.0/   # Dataset folder for vanilla RNN (should manually be placed)
 │
 ├── RNN_attention/
 │   ├── train_att_RNN.py          # Training script for attention-based RNN
@@ -28,7 +28,7 @@ RNN_assign3-main/
 │   ├── dataset_att_RNN.py        # Loads and prepares dataset for attention RNN
 │   ├── connect_att_RNN.py        # Visualizes attention weights (generates gifs)
 │   ├── best_att_model_*.pt       # Saved best-performing attention RNN model
-│   └── dhakshina_dataset_v1.0/   # Dataset folder for attention RNN
+│   └── dhakshina_dataset_v1.0/   # Dataset folder for attention RNN (should manually be placed)
 │
 ├── connectivity_gifs/           # Visualizations of attention weights over training for 3 different samples
 │   ├── sample 1 (gru_line_1.gif ; lstm_line_1.gif)
@@ -36,7 +36,7 @@ RNN_assign3-main/
 │   └── sample 3 (gru_line_2000.gif ; lstm_line_2000.gif)
 │
 ├── predictions_attention/
-│   ├── test_predictions.csv              # Basic prediction output
+│    └──test_predictions.csv              # Basic prediction output
 │
 ├── predictions_vanilla/
 │   └── test_predictions.csv              # Predictions from vanilla RNN
@@ -52,6 +52,7 @@ RNN_assign3-main/
 - Donot run the scripts from the parent folder. Please use the respective folders.
 ---
 ## Link to download the dataset : https://github.com/google-research-datasets/dakshina
+## Link to download Nano Sans Tamil font : https://fonts.google.com/noto/specimen/Noto%2BSans%2BTamil
 
 ## ⚙️ Environment Setup (Tested with CUDA GPU)
 
@@ -233,7 +234,7 @@ python train_att_RNN.py --sweep
 ---
 
 ### 4. `test_att_RNN.py` — Evaluation & W&B Prediction Grid
-**⚠️ NOTE**: You **must specify --model_path while running the script** if not using the default model which is `RNN_vannila/best_model_*.pt` and place it `RNN_attention/` via:
+**⚠️ NOTE**: You **must specify --model_path while running the script** if not using the default model which is `RNN_attention/best_model_*.pt` and place it `RNN_attention/` via:
 **Run**:
 ```bash
 python test_att_RNN.py 
@@ -241,7 +242,7 @@ python test_att_RNN.py
 
 **Argparse options**:
 - `--model_path` #should be specified if not using the default model
-- `--data_dir` #should be specified if is not in RNN_vannila folder
+- `--data_dir` #should be specified if is not in RNN_attention folder
 - `--lang`
 - `--embed_size`
 - `--hidden_size`
@@ -251,13 +252,13 @@ python test_att_RNN.py
 - `--init_method`
 - `--dropout`
 - `--batch_size`
-#based on users best hyperparamter combinations. Default is set with respect to the obtained best model.
+#model path should be based on users best hyperparamter combinations. Default is set with respect to the obtained best model.
 #produces confusion matrix token level, heatmaps and prediction tables in WandB.
 #displayes exact and token level accuracy.
 ---
 
-### 4. `connect_att_RNN.py` — Gives animation of connectivity for different samples
-**⚠️ NOTE**: You **must specify --model_path while running the script** if not using the default model which is `RNN_vannila/best_model_*.pt` and place it `RNN_attention/` via:
+### 5. `connect_att_RNN.py` — Gives animation of connectivity for different samples
+**⚠️ NOTE**: You **must specify --model_path while running the script** if not using the default model which is `RNN_attention/best_model_*.pt` and place it `RNN_attention/` via:
 **Run**:
 ```bash
 python connect_att_RNN.py 
@@ -273,6 +274,7 @@ python connect_att_RNN.py
 - `--dropout`
 #Produces animation for connectivity and displays the weights at each generating steps.
 #Provides animations for 3 different samples. Can be argparsed for different cell_types too.
+#Also gives connectivity images which can be used for additional visualisations.
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ## 🖼️ WandB Instructions: 
 
@@ -303,7 +305,7 @@ Please log in to Weights & Biases (`wandb login`) and initialize with your API k
 >  *A B Keshav Kumar (AE24S021),MS Scholar, IIT Madras* 
 > *Assignment 3_RNN
 ---
-
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ## 💬 Need Help?
 
 If any script fails due to import/module issues, check:
@@ -312,3 +314,4 @@ If any script fails due to import/module issues, check:
 - Dataset path structure (Dataset should be inside respective folders like "RNN_vannila" and "RNN_attention")
 - Run scripts only from the repective folders like "RNN_vannila" and "RNN_attention"
 - W&B login status (`wandb login`)
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
