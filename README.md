@@ -1,5 +1,5 @@
 # 📦 Transliteration from English to native language.
-#This repository was submitted as part of assignment 3 for the course DA6401, Deep Learning, IIT Madras.
+This repository was submitted as part of assignment 3 for the course DA6401, Deep Learning, IIT Madras.
 
 
 # 🔗 [GitHub Repository] https://github.com/Keshav-iitm/RNN_assign3.git
